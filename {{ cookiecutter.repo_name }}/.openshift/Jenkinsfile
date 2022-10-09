@@ -1,0 +1,241 @@
+pipeline {
+    agent { label 'node' }
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+    environment {
+        OC_PROJECT = 'prefect'
+        BASE_IMG_NAME = 'prefecthq/prefect'
+        OC_URL = 'https://c113-e.private.eu-de.containers.cloud.ibm.com:30227'
+        JIRA_URL = 'meemoo.atlassian.net'
+        APP_NAME = 'prefect-flow-ci-cd'
+        REGISTRY = 'default-route-openshift-image-registry.meemoo2-2bc857e5f10eb63ab790a3a1d19a696c-i000.eu-de.containers.appdomain.cloud'
+        REGISTRY_SCHEMA = "https://$REGISTRY"
+        REGISTRY_CREDENTIAL = 'docker-reg'
+    }
+
+    stages {
+        stage('Calculate extra ENV vars') {
+            steps {
+                script {
+                    env.GIT_SHORT_COMMIT = sh(script: "printf \$(git rev-parse --short ${GIT_COMMIT})", returnStdout: true)
+                    env.IMAGE_TAG = sh(script: 'git describe --tags || echo latest', returnStdout: true)
+                    // The name used for the build config based on the image tag
+                    // Replace '.' with '_' as '.' is not allowed.
+                    env.BUILD_CONFIG_NAME = sh(script: 'echo "${IMAGE_TAG}" | sed -r "s/\\./\\-/g"', returnStdout: true)
+                    env.DOCKER_IMAGE = sh(script: 'echo "${APP_NAME}:${GIT_SHORT_COMMIT}"')
+                }
+            }
+        }
+        stage('Test code') {
+            steps {
+                sh 'echo "No tests implemented"'
+            }
+        }
+        stage('Build and push docker') {
+            when {
+                not {
+                    buildingTag()
+                }
+            }
+            steps {
+                script {
+                    dockerImage = docker.build("$REGISTRY/prefect/$APP_NAME:$GIT_SHORT_COMMIT")
+                    docker.withRegistry(REGISTRY_SCHEMA, REGISTRY_CREDENTIAL) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
+
+        // INT
+        stage('Build Python Infra Block INT') {
+            when {
+                anyOf {
+                    changeRequest target: 'master'
+                    changeRequest target: 'main'
+                }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('int', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-int --registry docker-registry")
+                }
+            }
+        }
+
+        stage('Build prefect deployment INT') {
+            when {
+                anyOf {
+                    changeRequest target: 'master'
+                    changeRequest target: 'main'
+                }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('int', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-int -ib docker-container/${APP_NAME}-int --skip-upload -q deploy")
+                }
+            }
+        }
+
+        stage('Apply prefect deployment INT') {
+            when {
+                anyOf {
+                    changeRequest target: 'master'
+                    changeRequest target: 'main'
+                }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('int', 'prefect deployment apply main_flow-deployment.yaml')
+                }
+            }
+            post {
+                always {
+                    script {
+                        env.BRANCH_NAME = env.CHANGE_BRANCH
+                    }
+                    jiraSendDeploymentInfo site: "${JIRA_URL}", environmentId: 'int', environmentName: 'int', environmentType: 'testing'
+                }
+            }
+        }
+
+        // QAS
+        stage('Build Python Infra Block QAS') {
+            when {
+                anyOf { branch 'master'; branch 'main' }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('qas', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-qas --registry docker-registry")
+                }
+            }
+        }
+
+        stage('Build prefect deployment QAS') {
+            when {
+                anyOf { branch 'master'; branch 'main' }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('qas', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-qas -ib docker-container/${APP_NAME}-qas --skip-upload -q deploy")
+                }
+            }
+        }
+
+        stage('Apply prefect deployment QAS') {
+            when {
+                anyOf { branch 'master'; branch 'main' }
+            }
+            steps {
+                script {
+                    runInPrefectContainer('qas', 'prefect deployment apply main_flow-deployment.yaml')
+                }
+            }
+            post {
+                always {
+                    jiraSendDeploymentInfo site: "${JIRA_URL}", environmentId: 'qas', environmentName: 'qas', environmentType: 'staging'
+                }
+            }
+        }
+
+        // PRD
+        stage('Build Python Infra Block PRD') {
+            when {
+                buildingTag()
+            }
+            steps {
+                script {
+                    runInPrefectContainer('prd', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-prd --registry docker-registry")
+                }
+            }
+        }
+
+        stage('Build prefect deployment PRD') {
+            when {
+                buildingTag()
+            }
+            steps {
+                script { prd
+                    runInPrefectContainer('prd', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-prd -ib docker-container/${APP_NAME}-prd --skip-upload -q deploy")
+                }
+            }
+        }
+
+        stage('Apply prefect deployment PRD') {
+            when {
+                buildingTag()
+            }
+            steps {
+                script {
+                    runInPrefectContainer('prd', 'prefect deployment apply main_flow-deployment.yaml')
+                }
+            }
+        }
+    }
+    post {
+        success {
+            script {
+                if (env.BRANCH_NAME.startsWith('PR')) {
+                    setGitHubBuildStatus('Build', 'SUCCESS')
+                }
+            }
+        }
+        failure {
+            script {
+                if (env.BRANCH_NAME.startsWith('PR')) {
+                    setGitHubBuildStatus('Build', 'FAILURE')
+                }
+            }
+        }
+        always {
+            jiraSendBuildInfo site: "${JIRA_URL}"
+            // Archive test results
+            script {
+                if (fileExists('./tests/test_results.xml')) {
+                    junit 'tests/test_results.xml'
+                } else {
+                    echo 'No test results found'
+                }
+            }
+        }
+    }
+}
+
+void setGitHubBuildStatus(String message, String state) {
+    step([
+        $class: 'GitHubCommitStatusSetter',
+        reposSource: [$class: 'ManuallyEnteredRepositorySource', url: "${GIT_URL}"],
+        commitShaSource: [$class: 'ManuallyEnteredShaSource', sha: "${GIT_COMMIT}"],
+        errorHandlers: [[$class: 'ChangingBuildStatusErrorHandler', result: 'UNSTABLE']],
+        statusResultSource: [ $class: 'ConditionalStatusResultSource', results: [[$class: 'AnyBuildResult', message: message, state: state]] ]
+    ])
+}
+
+void runInPrefectContainer(String env, String commands) {
+    String prefect_api = ''
+    String prefect_version = ''
+
+    switch (env) {
+        case 'int':
+            prefect_api = "${PREFECT_URL_INT}"
+            prefect_version = "${PREFECT_VERSION_INT}"
+            break
+        case 'qas':
+            prefect_api = "${PREFECT_URL_QAS}"
+            prefect_version = "${PREFECT_VERSION_QAS}"
+            break
+        case 'prd':
+            prefect_api = "${PREFECT_URL_PRD}"
+            prefect_version = "${PREFECT_VERSION_PRD}"
+            break
+        default:
+            break
+    }
+    docker.image("${BASE_IMG_NAME}:${prefect_version}").inside("-e PREFECT_API_URL=${prefect_api}") {
+        sh """#!/bin/bash
+        unset HTTPS_PROXY HTTP_PROXY http_proxy https_proxy
+        $commands
+        """
+    }
+}
