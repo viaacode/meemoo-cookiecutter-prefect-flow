@@ -9,7 +9,7 @@ pipeline {
         BASE_IMG_NAME = 'prefecthq/prefect'
         OC_URL = 'https://c113-e.private.eu-de.containers.cloud.ibm.com:30227'
         JIRA_URL = 'meemoo.atlassian.net'
-        APP_NAME = 'prefect-flow-ci-cd'
+        APP_NAME = '{{ cookiecutter.repo_name }}'
         REGISTRY = 'default-route-openshift-image-registry.meemoo2-2bc857e5f10eb63ab790a3a1d19a696c-i000.eu-de.containers.appdomain.cloud'
         REGISTRY_SCHEMA = "https://$REGISTRY"
         REGISTRY_CREDENTIAL = 'docker-reg'
