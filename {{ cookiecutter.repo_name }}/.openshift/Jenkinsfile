@@ -59,7 +59,7 @@ pipeline {
             }
             steps {
                 script {
-                    runInPrefectContainer('int', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-int --registry docker-registry")
+                    runInPrefectContainer('int', "python infra_block.py --image $REGISTRY/prefect/$APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-int --registry docker-registry")
                 }
             }
         }
@@ -107,7 +107,7 @@ pipeline {
             }
             steps {
                 script {
-                    runInPrefectContainer('qas', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-qas --registry docker-registry")
+                    runInPrefectContainer('qas', "python infra_block.py --image $REGISTRY/prefect/$APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-qas --registry docker-registry")
                 }
             }
         }
@@ -146,7 +146,7 @@ pipeline {
             }
             steps {
                 script {
-                    runInPrefectContainer('prd', "python infra_block.py --image $APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-prd --registry docker-registry")
+                    runInPrefectContainer('prd', "python infra_block.py --image $REGISTRY/prefect/$APP_NAME:$GIT_SHORT_COMMIT --name ${APP_NAME}-prd --registry docker-registry")
                 }
             }
         }
