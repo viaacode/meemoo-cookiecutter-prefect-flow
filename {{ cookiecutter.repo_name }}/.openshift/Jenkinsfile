@@ -234,6 +234,12 @@ void runInPrefectContainer(String env, String commands) {
     }
     docker.image("${BASE_IMG_NAME}:${prefect_version}").inside("-e PREFECT_API_URL=${prefect_api}") {
         sh """#!/bin/bash
+        python_path=\$(python -c "import sys; print(sys.executable.replace('bin/python', 'pip.conf'))")
+        echo [global] >> \$python_path
+        echo "index-url = http://do-prd-mvn-01.do.viaa.be:8081/repository/pypi-all/simple" >> \$python_path
+        echo "trusted-host = do-prd-mvn-01.do.viaa.be" >> \$python_path
+        pip install -r requirements.txt
+        unset HTTPS_PROXY HTTP_PROXY http_proxy ht
         unset HTTPS_PROXY HTTP_PROXY http_proxy https_proxy
         $commands
         """
