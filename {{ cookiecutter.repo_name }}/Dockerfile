@@ -1,8 +1,5 @@
-FROM prefecthq/prefect:2.5.0-python3.9
+FROM prefecthq/prefect:{{ cookiecutter.prefect_docker_image_tag }}
 COPY requirements.txt .
-COPY add_nexus.sh .
-RUN chmod +x ./add_nexus.sh
-RUN ./add_nexus.sh
-RUN pip install -r requirements.txt
+RUN pip3 install -r requirements.txt --extra-index-url http://do-prd-mvn-01.do.viaa.be:8081/repository/pypi-all/simple --trusted-host do-prd-mvn-01.do.viaa.be
 ADD flows /opt/prefect/flows
-ADD data /opt/prefect/data
+
