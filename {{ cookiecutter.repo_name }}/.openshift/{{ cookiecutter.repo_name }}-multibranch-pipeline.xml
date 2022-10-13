@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject plugin="workflow-multibranch">
     <actions />
-    <description>Job for prefect-flow-ci-cd</description>
+    <description>Job for {{ cookiecutter.repo_name }}</description>
     <properties>
         <org.jenkinsci.plugins.docker.workflow.declarative.FolderConfig plugin="docker-workflow">
             <dockerLabel></dockerLabel>
