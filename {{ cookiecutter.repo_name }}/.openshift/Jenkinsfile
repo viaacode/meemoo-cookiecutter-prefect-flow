@@ -156,7 +156,7 @@ pipeline {
                 buildingTag()
             }
             steps {
-                script { prd
+                script {
                     runInPrefectContainer('prd', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-prd -ib docker-container/${APP_NAME}-prd --skip-upload -q deploy")
                 }
             }
