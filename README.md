@@ -42,6 +42,7 @@ Either way, tou will be prompted to fill in some variables:
 project_name [Prefect flow]: 
 repo_name [prefect-flow]: 
 flow_name [prefect_flow]: 
+queue_name [q-default]: (! Should always start with 'q-' to ensure it will be picked up)
 organization [meemoo]: 
 prefect_docker_image_tag [2.5.0-python3.9]: 
 ```

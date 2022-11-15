@@ -73,7 +73,7 @@ pipeline {
             }
             steps {
                 script {
-                    runInPrefectContainer('int', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-int -ib docker-container/${APP_NAME}-int --skip-upload -q deploy")
+                    runInPrefectContainer('int', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-int -ib docker-container/${APP_NAME}-int --skip-upload -q cookiecutter.queue_name")
                 }
             }
         }
@@ -118,7 +118,7 @@ pipeline {
             }
             steps {
                 script {
-                    runInPrefectContainer('qas', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-qas -ib docker-container/${APP_NAME}-qas --skip-upload -q deploy")
+                    runInPrefectContainer('qas', "prefect deployment build flows/main_flow.py:main_flow -n ${APP_NAME}-qas -ib docker-container/${APP_NAME}-qas --skip-upload -q cookiecutter.queue_name")
                 }
             }
         }
