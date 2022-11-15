@@ -3,5 +3,5 @@
     "repo_name": "{{ cookiecutter.project_name.lower().replace(' ', '-').replace('_', '-') }}",
     "flow_name": "{{ cookiecutter.repo_name.replace('-', '_') }}",
     "organization": "meemoo",
-    "prefect_docker_image_tag": "2.5.0-python3.9"
+    "prefect_docker_image_tag": "2.6.6-python3.9"
 }
